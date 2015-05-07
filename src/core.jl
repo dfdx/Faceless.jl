@@ -5,12 +5,17 @@ using ActiveAppearanceModels
 using Images
 using ImageView
 using Color
+using FaceDatasets
+using Boltzmann
+using HDF5, JLD
 
-include("data.jl")
+
 include("view.jl")
 
 # 4. apply PCA
 # 5. apply RBM
+
+const DATA_DIR_CK = expanduser("~/work/ck-data")
 
 
 function to_dataset(aam::AAModel, imgs::Vector{Matrix{Float64}},
@@ -71,10 +76,14 @@ end
 
 
 function main()
-    imgs = read_images_ck(DATA_DIR_CK, resizeratio=0.5)
-    shapes = read_shapes_ck(DATA_DIR_CK, resizeratio=0.5)
-    @time aam = train(AAModel(), imgs, shapes)
+    # imgs = read_images_ck(DATA_DIR_CK, resizeratio=0.5)
+    # shapes = read_shapes_ck(DATA_DIR_CK, resizeratio=0.5)
+    # @time aam = train(AAModel(), imgs, shapes)
 
+    imgs = load_images(:ck, DATA_DIR_CK, count=300, resizeratio=0.5)
+    shapes = load_images(:ck, DATA_DIR_CK, count=300, resizeratio=0.5)
+    @time aam = load(joinpath(DATA_DIR_CK, "aam.jld"))["aam"]
+    
     dataset = to_dataset(aam, imgs, shapes)
     P = projection(fit(PCA, dataset))
     nview(to_image(P[:, 1], aam.wparams.warp_map))

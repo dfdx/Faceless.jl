@@ -8,7 +8,7 @@ using Color
 using FaceDatasets
 using Boltzmann
 using HDF5, JLD
-
+using Clustering
 
 include("view.jl")
 
@@ -63,7 +63,7 @@ function normalize(img)
 end
 
 
-nview(img) = view(normalize(img))
+nview(img) = ImageView.view(normalize(img))
 
 
 function save_images{T,N}(imgs::Vector{Array{T,N}}, path::String; prefix="img")
@@ -71,6 +71,20 @@ function save_images{T,N}(imgs::Vector{Array{T,N}}, path::String; prefix="img")
         img = normalize(imgs[i])
         imwrite(img, joinpath(path, @sprintf("%s_%03d.png", prefix, i)))
     end
+end
+
+distance(x, y) = sum(abs(x .- y))
+
+function distance_matrix{T}(X::Matrix{T})
+    d, n = size(X)
+    D = zeros(Float64, n, n)
+    for j=1:n
+        for i=1:n
+            D[i, j] = distance(X[:, i], X[:, j])
+        end
+        println("column $j")
+    end
+    return D
 end
 
 
@@ -89,7 +103,7 @@ function main()
     mask = aam.wparams.warp_map
     
     rbm = GRBM(16177, 1024, sigma=0.001)
-    @time fit(rbm, dataset, n_gibbs=3, lr=0.1, n_iter=3)
+    @time fit(rbm, dataset, n_gibbs=3, lr=0.01, n_iter=10)
 
 
     P = projection(fit(PCA, dataset))
@@ -107,8 +121,12 @@ function main()
     save_images(convert(Vector{Matrix{Float64}}, rbm_imgs),
                 expanduser("~/Dropbox/PhD/MyPapers/facial_expr_repr/images/rbm"))
     
-    h5open(joinpath(DATA_DIR_CK, "rbm_1_9591.h5"), "w") do h5
+    h5open(joinpath(DATA_DIR_CK, "rbm_1.h5"), "w") do h5
         save_params(h5, rbm, "rbm")
+    end
+
+    h5open(joinpath(DATA_DIR_CK, "rbm_1.h5")) do h5
+        load_params(h5, rbm, "rbm")
     end
 
     ## h5open(joinpath(DATA_DIR_CK, "rbm_1.jld")) do h5
@@ -117,7 +135,9 @@ function main()
     
 end
 
-
+# pseudo-likelihood progress (number of iterations - likelihood)
+# 40 - 9471
+# 50 - 9426
 
 # some results from previous experiments
 # n_hid=192, n_gibbs=3, n_meta=10 ~ 7 faces of good quality

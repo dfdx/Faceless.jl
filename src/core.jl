@@ -73,6 +73,11 @@ function save_images{T,N}(imgs::Vector{Array{T,N}}, path::String; prefix="img")
     end
 end
 
+function save_comps{T}(X::Matrix{T}, mask::Matrix{Int}, path::String)
+    imgs = [to_image(X[:, i], mask) for i=1:size(X, 2)]
+    save_images(imgs, path)
+end
+
 distance(x, y) = sum(abs(x .- y))
 
 function distance_matrix{T}(X::Matrix{T})
@@ -87,6 +92,12 @@ function distance_matrix{T}(X::Matrix{T})
     return D
 end
 
+@doc doc"""Take only images that significantly differ from others""" ->
+function dissimilar(X)
+    D = distance_matrix(X)
+    R = dbscan(D, 50, 1)
+    return X[:, R.seeds]    
+end
 
 function main()
     imgs = imgs = load_images(:ck, datadir=DATA_DIR_CK, resizeratio=0.5)

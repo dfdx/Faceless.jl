@@ -92,16 +92,18 @@ function distance_matrix{T}(X::Matrix{T})
     return D
 end
 
-@doc doc"""Take only images that significantly differ from others""" ->
 function dissimilar(X)
     D = distance_matrix(X)
     R = dbscan(D, 50, 1)
     return X[:, R.seeds]    
 end
 
+
+# 1993 - 1st image for S55
+
 function main()
-    imgs = imgs = load_images(:ck, datadir=DATA_DIR_CK, resizeratio=0.5)
-    shapes = load_shapes(:ck, datadir=DATA_DIR_CK, resizeratio=0.5)
+    imgs = load_images(:ck, datadir=DATA_DIR_CK, count=2000, resizeratio=0.5)
+    shapes = load_shapes(:ck, datadir=DATA_DIR_CK, count=2000, resizeratio=0.5)
     ## @time aam = train(AAModel(), imgs, shapes)
 
     ## indexes = rand(1:10708, 2048)

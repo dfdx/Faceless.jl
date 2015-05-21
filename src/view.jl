@@ -1,6 +1,6 @@
 
 function viewshape(img::Image, lms::Matrix{Float64})
-    imgc, img2 = view(img)
+    imgc, img2 = ImageView.view(img)
     for i=1:size(lms, 1)
         annotate!(imgc, img2, AnnotationPoint(lms[i, 2], lms[i, 1], shape='.',
                                               size=4))

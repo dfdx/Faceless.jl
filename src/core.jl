@@ -17,14 +17,14 @@ include("view.jl")
 const DATA_DIR_CK = expanduser("~/data/CK")
 
 
-function to_dataset(aam::AAModel, imgs::Vector{Matrix{Float64}},
+function to_dataset(wparams::PAWarpParams, imgs::Vector{Matrix{Float64}},
                     shapes::Vector{Shape})
-    warped1 = pa_warp(aam.wparams, imgs[1], shapes[1])
-    v1 = to_vector(warped1, aam.wparams.warp_map)
+    warped1 = pa_warp(wparams, imgs[1], shapes[1])
+    v1 = to_vector(warped1, wparams.warp_map)
     dataset = zeros(Float64, length(v1), length(imgs))
     for i=1:length(imgs)
-        warped = pa_warp(aam.wparams, imgs[i], shapes[i])
-        dataset[:, i] = to_vector(warped, aam.wparams.warp_map)
+        warped = pa_warp(wparams, imgs[i], shapes[i])
+        dataset[:, i] = to_vector(warped, wparams.warp_map)
     end
     dataset
 end
@@ -116,31 +116,26 @@ function load_aam()
     return load(joinpath(DATA_DIR_CK, "aam.jld"))["aam"]
 end
 
-function main()
-    imgs = load_images(:ck, datadir=DATA_DIR_CK, start=1990, count=2000)
-    shapes = load_shapes(:ck, datadir=DATA_DIR_CK, start=1990, count=2000)
-    @time aam = train(AAModel(), imgs, shapes)
 
-    # indexes = rand(1:10708, 2048)
-    imgs = load_images(:ck, datadir=DATA_DIR_CK, resizeratio=0.5);
-    shapes = load_shapes(:ck, datadir=DATA_DIR_CK, resizeratio=0.5);
-    @time aam = load(joinpath(DATA_DIR_CK, "aam.jld"))["aam"]    
-    
-    dataset = to_dataset(aam, imgs, shapes)
-    mask = aam.wparams.warp_map
-    
-    rbm = GRBM(16177, 1024, sigma=0.001)
-    @time fit(rbm, dataset, n_gibbs=3, lr=0.01, n_iter=10)
+function save_dataset(dataset)
+    h5write(joinpath(DATA_DIR_CK, "dataset.h5"), "dataset", dataset)
+end
+
+read_dataset() = h5read(joinpath(DATA_DIR_CK, "dataset.h5"), "dataset")
 
 
+function test_projections()
     P = projection(fit(PCA, dataset))
     nview(to_image(P[:, 1], aam.wparams.warp_map))
-    pca_imgs = Matrix{Float64}[normalize(to_image(P[:, i], aam.wparams.warp_map))
+    pca_imgs = Matrix{Float64}[normalize(to_image(P[:, i],
+                                                  aam.wparams.warp_map))
                                for i=1:size(P, 2)]
     save_images(pca_imgs,
                 expanduser("~/Dropbox/PhD/MyPapers/facial_expr_repr/images/pca"))
+end
 
-    
+
+function view_and_save_rbm()
     comps = components(rbm)
     rbm_imgs = [to_image(comps[:, i], mask) for i=1:size(comps, 2)]
     nviewall(rbm_imgs[1:36])
@@ -155,12 +150,24 @@ function main()
     h5open(joinpath(DATA_DIR_CK, "rbm_1.h5")) do h5
         load_params(h5, rbm, "rbm")
     end
+end
 
-    ## h5open(joinpath(DATA_DIR_CK, "rbm_1.jld")) do h5
-    ##     rbm2 = save_params(h5, rbm, "rbm")
-    ## end
+
+function main()
+    aam = load_aam()
+
+    imgs = load_images(:ck_max, datadir=DATA_DIR_CK, resizeratio=.25)
+    shapes = load_shapes(:ck_max, datadir=DATA_DIR_CK, resizeratio=.25)
+    
+    dataset = to_dataset(aam.wparams, imgs, shapes)
+    mask = aam.wparams.warp_map
+    
+    rbm = GRBM(16177, 1024, sigma=0.001)
+    @time fit(rbm, dataset, n_gibbs=3, lr=0.01, n_iter=10)
     
 end
+
+
 
 # pseudo-likelihood progress (number of iterations - likelihood)
 # 40 - 9471

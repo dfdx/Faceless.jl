@@ -4,16 +4,17 @@ using MultivariateStats
 using ActiveAppearanceModels
 using Images
 using ImageView
-using Color
+using Colors
 using FaceDatasets
 using Boltzmann
-using HDF5, JLD
+using HDF5
+using JLD
 using Clustering
 
 include("view.jl")
 
 
-const DATA_DIR_CK = expanduser("~/work/ck-data")
+const DATA_DIR_CK = expanduser("~/data/CK")
 
 
 function to_dataset(aam::AAModel, imgs::Vector{Matrix{Float64}},
@@ -66,14 +67,14 @@ end
 nview(img) = ImageView.view(normalize(img))
 
 
-function save_images{T,N}(imgs::Vector{Array{T,N}}, path::String; prefix="img")
+function save_images{T,N}(imgs::Vector{Array{T,N}}, path::UTF8String; prefix="img")
     for i=1:length(imgs)
         img = normalize(imgs[i])
         imwrite(img, joinpath(path, @sprintf("%s_%03d.png", prefix, i)))
     end
 end
 
-function save_comps{T}(X::Matrix{T}, mask::Matrix{Int}, path::String)
+function save_comps{T}(X::Matrix{T}, mask::Matrix{Int}, path::UTF8String)
     imgs = [to_image(X[:, i], mask) for i=1:size(X, 2)]
     save_images(imgs, path)
 end
@@ -102,15 +103,27 @@ end
 # 1993 - S55
 # 1990+1700 - S74
 
+
+function train_and_save_aam()
+    # sample of 20 images, just to get shape params
+    imgs = load_images(:ck, datadir=DATA_DIR_CK, start=1990, count=2000)
+    shapes = load_shapes(:ck, datadir=DATA_DIR_CK, start=1990, count=2000)
+    @time aam = train(AAModel(), imgs, shapes);
+    save(joinpath(DATA_DIR_CK, "aam.jld"), "aam", aam)
+end
+
+function load_aam()
+    return load(joinpath(DATA_DIR_CK, "aam.jld"))["aam"]
+end
+
 function main()
     imgs = load_images(:ck, datadir=DATA_DIR_CK, start=1990, count=2000)
     shapes = load_shapes(:ck, datadir=DATA_DIR_CK, start=1990, count=2000)
-    ## @time aam = train(AAModel(), imgs, shapes)
+    @time aam = train(AAModel(), imgs, shapes)
 
-    ## indexes = rand(1:10708, 2048)
-    ## imgs = load_images(:ck, datadir=DATA_DIR_CK, indexes=indexes, resizeratio=0.5)
-    ## shapes = load_shapes(:ck, datadir=DATA_DIR_CK, indexes=indexes,
-    ##                      resizeratio=0.5)
+    # indexes = rand(1:10708, 2048)
+    imgs = load_images(:ck, datadir=DATA_DIR_CK, resizeratio=0.5);
+    shapes = load_shapes(:ck, datadir=DATA_DIR_CK, resizeratio=0.5);
     @time aam = load(joinpath(DATA_DIR_CK, "aam.jld"))["aam"]    
     
     dataset = to_dataset(aam, imgs, shapes)

@@ -15,6 +15,7 @@ include("view.jl")
 
 
 const DATA_DIR_CK = expanduser("~/data/CK")
+const RESIZERATIO = .5
 
 
 function to_dataset(wparams::PAWarpParams, imgs::Vector{Matrix{Float64}},
@@ -105,10 +106,11 @@ end
 
 
 function train_and_save_aam()
-    # sample of 20 images, just to get shape params
-    imgs = load_images(:ck, datadir=DATA_DIR_CK, start=1990, count=2000)
-    shapes = load_shapes(:ck, datadir=DATA_DIR_CK, start=1990, count=2000)
-    @time aam = train(AAModel(), imgs, shapes);
+    imgs_aam = load_images(:ck, datadir=DATA_DIR_CK,
+                           resizeratio=RESIZERATIO, start=2000, count=2000)
+    shapes_aam = load_shapes(:ck, datadir=DATA_DIR_CK,
+                             resizeratio=RESIZERATIO, start=2000, count=2000)
+    @time aam = train(AAModel(), imgs_aam, shapes_aam);
     save(joinpath(DATA_DIR_CK, "aam.jld"), "aam", aam)
 end
 
@@ -153,20 +155,98 @@ function view_and_save_rbm()
 end
 
 
+
+## function run_shapes()
+##     shapes = load_shapes(:ck, datadir=DATA_DIR_CK, resizeratio=.5)
+
+##     shape_data = hcat([reshape(s, length(s)) for s in shapes]...)
+##     X = normalize(shape_data)
+        
+##     rbm = GRBM(size(X, 1), 6)
+##     @time fit(rbm, X, n_gibbs=3, lr=0.1, n_iter=1000)
+
+##     W = normalize(rbm.W') * 300
+##     viewshape(zeros(300, 400), reshape(W[:, 2], 68 ,2))
+## end
+
+
+
+
 function main()
     aam = load_aam()
 
-    imgs = load_images(:ck_max, datadir=DATA_DIR_CK, resizeratio=.25)
-    shapes = load_shapes(:ck_max, datadir=DATA_DIR_CK, resizeratio=.25)
+    # idxs = sample(1:count, count, replace=false)
+    imgs = load_images(:ck, datadir=DATA_DIR_CK,
+                       resizeratio=RESIZERATIO)
+    shapes = load_shapes(:ck, datadir=DATA_DIR_CK,
+                         resizeratio=RESIZERATIO)
     
     dataset = to_dataset(aam.wparams, imgs, shapes)
     mask = aam.wparams.warp_map
-    
-    rbm = GRBM(16177, 1024, sigma=0.001)
-    @time fit(rbm, dataset, n_gibbs=3, lr=0.01, n_iter=10)
+    imgs = nothing
+
+    # nviewall([to_image(dataset[:, i], mask) for i=1:36])
+
+    rbm = nothing
+    for lr in [0.1]
+        println("-------- lr = $lr -----------")
+        rbm = RBM(Degenerate, Bernoulli, size(dataset, 1), 1024, sigma=0.001)
+        @time fit(rbm, dataset, n_gibbs=3, lr=0.001,
+                  batch_size=1000, n_epochs=100)
+        nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+        nviewall([to_image(rbm.W'[:, i], mask) for i=37:72])
+    end
+    readline(STDIN)
     
 end
 
+
+# Boltzmann.jl commit 343fce064c162a62215af7c1be07eea5b5bc2762
+# resize ratio = 0.5 (~12k visible variables)
+
+# Experiment 1: all good, but only 2 different faces (similar as well)
+# more gibbs steps gives slightly better results
+    ## for n_gibbs in [1, 3, 5]
+    ##     println("-------- n_gibbs = $n_gibbs -----------")
+    ##     rbm = RBM(Degenerate, Bernoulli, size(dataset, 1), 1024, sigma=0.001)
+    ##     @time fit(rbm, dataset, n_gibbs=n_gibbs, lr=0.01,
+    ##               batch_size=1000, n_epochs=100)
+    ##     nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+    ## end
+
+
+# Experiment 2: sigma=0.1 - high distortion, sigma=0.01 - medium distortion, sigma=0.001 - no distortion
+# all very similar
+    ## for sigma in [0.001, 0.01, 0.1]
+    ##     println("-------- sigma = $sigma -----------")
+    ##     rbm = RBM(Degenerate, Bernoulli, size(dataset, 1), 1024, sigma=sigma)
+    ##     @time fit(rbm, dataset, n_gibbs=3, lr=0.01,
+    ##               batch_size=1000, n_epochs=100)
+    ##     nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+    ## end
+
+
+# Experiment 3: sigma=0.5 - total shit, 100% distorsion
+##         rbm = RBM(Degenerate, Bernoulli, size(dataset, 1), 1024, sigma=0.5)
+##         @time fit(rbm, dataset, n_gibbs=3, lr=0.01,
+##                   batch_size=1000, n_epochs=100)
+##         nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+
+
+# Experiment 4: lr=0.001 and lr=0.01 - almost useless (pure noise), lr=0.1 and lr=1 - better (or vice versa?)
+    ## for lr in [0.001, 0.01, 0.1, 1.]
+    ##     println("-------- lr = $lr -----------")
+    ##     rbm = RBM(Degenerate, Bernoulli, size(dataset, 1), 1024, sigma=0.1)
+    ##     @time fit(rbm, dataset, n_gibbs=3, lr=lr,
+    ##               batch_size=1000, n_epochs=100)
+    ##     nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+    ## end
+
+# !!! Experiment 5: many similar, but in general quite good
+## rbm = RBM(Degenerate, Bernoulli, size(dataset, 1), 1024, sigma=0.001)
+## @time fit(rbm, dataset, n_gibbs=3, lr=0.001,
+##           batch_size=1000, n_epochs=100)
+## nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
 
 
 # pseudo-likelihood progress (number of iterations - likelihood)

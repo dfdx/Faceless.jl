@@ -187,14 +187,15 @@ function main()
 
     # nviewall([to_image(dataset[:, i], mask) for i=1:36])
 
-    rbm = nothing
-    for lr in [0.1]
-        println("-------- lr = $lr -----------")
+    rbms = Array(Any, 3)
+    for (i, p) in enumerate([1, 3, 5])
+        println("-------- parameter = $p -----------")
         rbm = RBM(Degenerate, Bernoulli, size(dataset, 1), 1024, sigma=0.001)
-        @time fit(rbm, dataset, n_gibbs=3, lr=0.001,
+        @time fit(rbm, dataset, n_gibbs=p, lr=0.001,
                   batch_size=1000, n_epochs=100)
         nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
-        nviewall([to_image(rbm.W'[:, i], mask) for i=37:72])
+        # nviewall([to_image(rbm.W'[:, i], mask) for i=37+36:72+46])
+        rbms[i] = rbm
     end
     readline(STDIN)
     
@@ -247,6 +248,19 @@ end
 ## @time fit(rbm, dataset, n_gibbs=3, lr=0.001,
 ##           batch_size=1000, n_epochs=100)
 ## nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+
+
+# Experiment 6: n_gibbs > 1 doesn't make any difference
+## for (i, p) in enumerate([1, 3, 5])
+##         println("-------- parameter = $p -----------")
+##         rbm = RBM(Degenerate, Bernoulli, size(dataset, 1), 1024, sigma=0.001)
+##         @time fit(rbm, dataset, n_gibbs=p, lr=0.001,
+##                   batch_size=1000, n_epochs=100)
+##         nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+##         # nviewall([to_image(rbm.W'[:, i], mask) for i=37:72])
+##         rbms[i] = rbm
+##     end
+
 
 
 # pseudo-likelihood progress (number of iterations - likelihood)

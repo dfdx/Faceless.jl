@@ -97,7 +97,7 @@ end
 function dissimilar(X)
     D = distance_matrix(X)
     R = dbscan(D, 50, 1)
-    return X[:, R.seeds]    
+    return X[:, R.seeds]
 end
 
 
@@ -144,7 +144,7 @@ function view_and_save_rbm()
 
     save_images(convert(Vector{Matrix{Float64}}, rbm_imgs),
                 expanduser("~/Dropbox/PhD/MyPapers/facial_expr_repr/images/rbm"))
-    
+
     h5open(joinpath(DATA_DIR_CK, "rbm_1.h5"), "w") do h5
         save_params(h5, rbm, "rbm")
     end
@@ -161,7 +161,7 @@ end
 
 ##     shape_data = hcat([reshape(s, length(s)) for s in shapes]...)
 ##     X = normalize(shape_data)
-        
+
 ##     rbm = GRBM(size(X, 1), 6)
 ##     @time fit(rbm, X, n_gibbs=3, lr=0.1, n_iter=1000)
 
@@ -170,7 +170,7 @@ end
 ## end
 
 
-
+# Next Experiment: Gaussian and Bernoulli visible units
 
 function main()
     aam = load_aam()
@@ -180,25 +180,27 @@ function main()
                        resizeratio=RESIZERATIO)
     shapes = load_shapes(:ck, datadir=DATA_DIR_CK,
                          resizeratio=RESIZERATIO)
-    
+
     dataset = to_dataset(aam.wparams, imgs, shapes)
     mask = aam.wparams.warp_map
     imgs = nothing
 
     # nviewall([to_image(dataset[:, i], mask) for i=1:36])
 
-    rbms = Array(Any, 3)
-    for (i, p) in enumerate([1, 3, 5])
-        println("-------- parameter = $p -----------")
-        rbm = RBM(Degenerate, Bernoulli, size(dataset, 1), 1024, sigma=0.001)
-        @time fit(rbm, dataset, n_gibbs=p, lr=0.001,
-                  batch_size=1000, n_epochs=100)
+    rbms = Array(Any, 8)
+    for (i, p) in enumerate([0.01])
+        println("-------- param1 = $p -----------")
+        rbm = RBM(Degenerate, Bernoulli, size(dataset, 1),
+                  36, sigma=0.01)
+        @time fit(rbm, dataset, n_gibbs=1, lr=0.01,
+                  batch_size=1000, n_epochs=50,
+                  weight_decay_kind=:l2, weight_decay_rate=0.5
+                  #sparsity_cost=p, sparsity_target=.001
+                  )
         nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
-        # nviewall([to_image(rbm.W'[:, i], mask) for i=37+36:72+46])
+        # nviewall([to_image(rbm.W'[:, i], mask) for i=37:72])
         rbms[i] = rbm
     end
-    readline(STDIN)
-    
 end
 
 
@@ -261,6 +263,139 @@ end
 ##         rbms[i] = rbm
 ##     end
 
+
+# Experiment 7: L1 weight decay gives very high distortion for all
+# values of parameters. In addition, score is unstable and much higher
+# (-8k..-9k vs. normal -7k)
+## for (i, p) in enumerate([.5, .7, .9])
+##         println("-------- parameter = $p -----------")
+##         rbm = RBM(Degenerate, Bernoulli, size(dataset, 1), 1024, sigma=0.001)
+##         @time fit(rbm, dataset, n_gibbs=1, lr=0.001,
+##                   batch_size=1000, n_epochs=100,
+##                   weight_decay_kind=:l1, weight_decay_rate=p)
+##         nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+##         # nviewall([to_image(rbm.W'[:, i], mask) for i=37+36:72+46])
+##         rbms[i] = rbm
+##     end
+
+
+# Experiment 8: L2 weight decay gives very good smoothing
+# wd_rate=0.5 - excellent smoothing (still quite similar)
+# wd_rate=0.9 - faces are less natural
+    ## rbms = Array(Any, 3)
+    ## for (i, p) in enumerate([.5])
+    ##     println("-------- parameter = $p -----------")
+    ##     rbm = RBM(Degenerate, Bernoulli, size(dataset, 1),
+    ##                   1024, sigma=0.001)
+    ##     @time fit(rbm, dataset, n_gibbs=1, lr=0.001,
+    ##               batch_size=1000, n_epochs=10,
+    ##               weight_decay_kind=:l2, weight_decay_rate=p)
+    ##     nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+    ##     nviewall([to_image(rbm.W'[:, i], mask) for i=37+36:72+46])
+    ##     rbms[i] = rbm
+    ## end
+    ## readline(STDIN)
+
+
+# Experiment 9:
+# 1) wd_rate=.1, sigma=.001 - all similar, just some with higher contrast,
+#  others with very little contrast
+# 2) wd_rate=.3, sigma=.001 - all similar, black and white
+# 3) wd_rate=.5, sigma=.001 - all similar
+# 4) wd_rate=.9, sigma=.001 - all similar, "dirty" faces
+# 5) wd_rate=.1, sigma=.01 - same as (1)
+# 6) wd_rate=.3, sigma=.01 - same as (2)
+# 7) wd_rate=.5, sigma=.01 - all similar
+# 8) wd_rate=.9, sigma=.01 - all similar, "dirty" faces
+##     rbms = Array(Any, 8)
+##     for (i, (p1, p2)) in enumerate([(.1, .001), (.3, .001),
+##                                   (.5, .001), (.9, .001),
+##                                   (.1, .01), (.3, .01)
+##                                   (.5, .01), (.9, .01)
+##                                     ])
+##         println("-------- param1 = $p1, param2 = $p2 -----------")
+##         rbm = RBM(Degenerate, Bernoulli, size(dataset, 1),
+##                       1024, sigma=p2)
+##         @time fit(rbm, dataset, n_gibbs=1, lr=0.001,
+##                   batch_size=1000, n_epochs=20,
+##                   weight_decay_kind=:l2, weight_decay_rate=p1)
+##         nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+##         # nviewall([to_image(rbm.W'[:, i], mask) for i=37:72])
+##         rbms[i] = rbm
+##     end
+
+
+# Experiment 10: learning rate with improved L2 regularization
+# 1) lr=0.01 - good quality, at least 3 distinct faces
+# 2,3) lr=0.1 & lr=1 - high distortion
+##     for (i, p1) in enumerate([0.01, 0.1, 1.0])
+##         println("-------- param1 = $p1 -----------")
+##         rbm = RBM(Degenerate, Bernoulli, size(dataset, 1),
+##                       1024, sigma=0.01)
+##         @time fit(rbm, dataset, n_gibbs=1, lr=p1,
+##                   batch_size=1000, n_epochs=20,
+##                   weight_decay_kind=:l2, weight_decay_rate=0.5)
+##         nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+##         # nviewall([to_image(rbm.W'[:, i], mask) for i=37:72])
+##         rbms[i] = rbm
+##     end
+
+# Experiment 11: Gaussian visible units - high distortion
+
+# Experiment 12: Bernolli visible units - distortion lower than with
+# Gaussian, many DIFFERENT faces
+##     rbms = Array(Any, 8)
+##     for (i, p1) in enumerate([0.001])
+##         println("-------- param1 = $p1 -----------")
+##         rbm = RBM(Bernoulli, Bernoulli, size(dataset, 1),
+##                       1024, sigma=0.01)
+##         @time fit(rbm, dataset, n_gibbs=1, lr=p1,
+##                   batch_size=1000, n_epochs=20,
+##                   weight_decay_kind=:l2, weight_decay_rate=0.5)
+##         nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+##         # nviewall([to_image(rbm.W'[:, i], mask) for i=37:72])
+##         rbms[i] = rbm
+##     end
+
+
+# Experiment 13: Faces are smooth, different
+##         rbm = RBM(Degenerate, Bernoulli, size(dataset, 1),
+##                       1024, sigma=0.01)
+##         @time fit(rbm, dataset, n_gibbs=1, lr=p1,
+##                   batch_size=1000, n_epochs=20,
+##                   weight_decay_kind=:l2, weight_decay_rate=0.5)
+##         nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+
+
+# Experiment 14: sparsity target - many different
+## for (i, p) in enumerate([0.001, 0.01, 0.1])
+##         println("-------- param1 = $p -----------")
+##         rbm = RBM(Degenerate, Bernoulli, size(dataset, 1),
+##                       1024, sigma=0.01)
+##         @time fit(rbm, dataset, n_gibbs=1, lr=0.01,
+##                   batch_size=1000, n_epochs=20,
+##                   weight_decay_kind=:l2, weight_decay_rate=0.5,
+##                   sparsity_cost=0.1, sparsity_target=p)
+##         nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+##         # nviewall([to_image(rbm.W'[:, i], mask) for i=37:72])
+##         rbms[i] = rbm
+##     end
+
+
+# Experiment 15: sparsity cost - see images
+## rbms = Array(Any, 8)
+##     for (i, p) in enumerate([0.01, 0.1, 0.5, 0.9])
+##         println("-------- param1 = $p -----------")
+##         rbm = RBM(Degenerate, Bernoulli, size(dataset, 1),
+##                       1024, sigma=0.01)
+##         @time fit(rbm, dataset, n_gibbs=1, lr=0.01,
+##                   batch_size=1000, n_epochs=20,
+##                   weight_decay_kind=:l2, weight_decay_rate=0.5,
+##                   sparsity_cost=p, sparsity_target=.001)
+##         nviewall([to_image(rbm.W'[:, i], mask) for i=1:36])
+##         # nviewall([to_image(rbm.W'[:, i], mask) for i=37:72])
+##         rbms[i] = rbm
+##     end
 
 
 # pseudo-likelihood progress (number of iterations - likelihood)

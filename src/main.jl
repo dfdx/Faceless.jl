@@ -1,4 +1,0 @@
-
-include("core.jl")
-
-main()

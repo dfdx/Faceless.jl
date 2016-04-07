@@ -32,3 +32,13 @@ function nviewall(imgs, padding=10)
     nview(dat)
     return dat
 end
+
+
+function normalize(img)
+    mn, mx = minimum(img), maximum(img)
+    nimg = (img .- mn) ./ (mx - mn)
+    nimg
+end
+
+
+nview(img) = ImageView.view(normalize(img))

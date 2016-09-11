@@ -1,2 +1,8 @@
 *~
+\#*
 .juliahistory
+*.h5
+*.pdf
+*.log
+*.gz
+*.pyc

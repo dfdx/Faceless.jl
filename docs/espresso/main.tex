@@ -1,0 +1,95 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage[pdftex]{graphicx}
+\graphicspath{{./pdf/}{./images/}}
+
+% \usepackage[justification=centering]{caption}
+
+% correct bad hyphenation here
+\hyphenation{op-tical net-works semi-conduc-tor}
+
+\usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\makeatletter
+\def\BState{\State\hskip-\ALG@thistlm}
+\makeatother
+
+
+\begin{document}
+
+\title{Hybrid differentiation of tensors \\ for machine learning}
+
+
+\author{
+\IEEEauthorblockN{Andrei Zhabinski}
+\IEEEauthorblockA{
+Belarussian State University \\of Informatics and Radioelectronics\\
+Minsk, Belarus\\
+Email: andrei.zhabinski@gmail.com}
+\and
+\IEEEauthorblockN{Andrey Vakunov}
+\IEEEauthorblockA{
+Adform BY\\
+Minsk, Belarus\\
+Email: andrey.vakunov@adform.com}
+\and
+\IEEEauthorblockN{Dzmitry Adzinets}
+\IEEEauthorblockA{
+Belarussian State University \\of Informatics and Radioelectronics\\
+Minsk, Belarus\\
+Email: adzinets@bsuir.by}}
+
+\maketitle
+
+
+\begin{abstract}
+%\boldmath
+TODO
+
+
+\end{abstract}
+
+% no keywords
+
+\IEEEpeerreviewmaketitle
+
+
+\section{Introduction}
+
+A significant portion of machine learning algorithms directly relies on gradient-based optimization methods. As their name states, these methods require computing a gradient of a loss function on each step of optimization. Simple models like logistic regression have well-known formulas for computing partial derivatives. However, recent progress in machine learning and especially deep neural networks has given the rise to much more complicated models and loss functions. (examples/references?) 
+
+Manually computing gradients of such functions is time-consuming and error-prone, so often computer-based methods are used instead. Such methods fall into several categories, and each category has their advantages and downsides. In this paper we present a method that falls in-between 2 of these categories (hence, hybrid method) and is specifically designed with a focus on machine learning applications. One important difference from other approaches is that our method also supports differentiation of higher-order tensors by using (extended) Einstein notation, which is not the case for any of differentiation systens known to us.
+
+The rest of this paper is structured as follow. In the next section we revisit major categories (families?) of computer-based differentiation algorithms and explain where our method falls in. In section 3 we describe actual method as applied to scalars (numbers) and lower-order tensors, while in section 4 we extend it to higher-order tensors using  Einstein notation. 
+
+
+\section{Overview of computer-based differentiation methods}
+
+TODO 
+
+\section{Hybrid method for scalars and lower-order tensors}
+
+TODO
+
+\section{Hybrid method for higher-order tensors}
+
+TODO
+
+\newpage
+
+\section{Conclusion and discussion}
+
+
+
+% conference papers do not normally have an appendix
+
+
+\bibliography{references} 
+\bibliographystyle{ieeetr}
+
+
+
+% that's all folks
+\end{document}

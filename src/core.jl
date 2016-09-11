@@ -11,14 +11,11 @@ using HDF5
 using JLD
 using Clustering
 
-const DATA_DIR_CK = expanduser("~/data/CK")
+const DATA_DIR = expanduser("~/data")
+const DATA_DIR_PUT = joinpath(DATA_DIR, "PUT")
+const DATA_DIR_CK = joinpath(DATA_DIR, "CK")
 const MODEL_DIR = expanduser("~/data/models")
-const RESIZERATIO = .5
+const RESIZERATIO = .25
 
 include("view.jl")
-incllude("utils.jl")
-
-
-
-
-
+include("utils.jl")

@@ -60,14 +60,53 @@ TODO
 
 A significant portion of machine learning algorithms directly relies on gradient-based optimization methods. As their name states, these methods require computing a gradient of a loss function on each step of optimization. Simple models like logistic regression have well-known formulas for computing partial derivatives. However, recent progress in machine learning and especially deep neural networks has given the rise to much more complicated models and loss functions. (examples/references?) 
 
-Manually computing gradients of such functions is time-consuming and error-prone, so often computer-based methods are used instead. Such methods fall into several categories, and each category has their advantages and downsides. In this paper we present a method that falls in-between 2 of these categories (hence, hybrid method) and is specifically designed with a focus on machine learning applications. One important difference from other approaches is that our method also supports differentiation of higher-order tensors by using (extended) Einstein notation, which is not the case for any of differentiation systens known to us.
+Manually computing gradients of such functions is time-consuming and error-prone, so often computer-based methods are used instead. Such methods fall into several categories, and each category has their advantages and downsides. In this paper we present a method that falls in-between 2 of these categories (hence, hybrid method) and is specifically designed with a focus on machine learning applications. One important difference from other approaches is that our method also supports efficient calculation of derivatives of functions from $R^m$ to $R^n$ where both $m$ and $n$ are large, whereas other methods either require one of them to be small (add references? ForwardDiff.jl, ReverseDiffSource.jl), or can't handle vector-functions at all (add references? Mathematica, SymPy). 
 
 The rest of this paper is structured as follow. In the next section we revisit major categories (families?) of computer-based differentiation algorithms and explain where our method falls in. In section 3 we describe actual method as applied to scalars (numbers) and lower-order tensors, while in section 4 we extend it to higher-order tensors using  Einstein notation. 
 
 
 \section{Overview of computer-based differentiation methods}
 
-TODO 
+To the best of our knowledge, most computer-based differentiation methods are divided into 3 main categories: 
+
+\begin{enumerate}
+\item Numeric (also known as finite difference methods)
+\item Symbolic
+\item Automatic
+\end{enumerate}
+
+
+\textbf{Numeric differentiation} methods are the simplest ones and directly rely on the definition of derivative. We say that $\frac{df}{dx}$ is a derivative of a function $f(x)$ with respect to $x$ if: 
+
+$$\frac{df}{dx} = \lim_{\Delta x \to 0} \frac{f(x + \Delta x) - f(x)}{\Delta x}$$
+
+Given this definition we can calculate derivative of any function by computing it at $x$ and $x + \Delta x$ where $\Delta x$ is some little constant, and then dividing the result by that constant. 
+
+The major advantage of this method is that it's able to compute derivatives of any function differentiable at both - $x$ and $\Delta x$. The main disadvantage comes from complexity of choosing good $\Delta x$: too small values may lead to round-off errors during floating point operations, while too large values lead to weak approximation of real value of a derivative. Attempts have been done to imrpove precision using multiple differences (e.g. \cite{fornberg1988}), but in general case accuracy of numeric differentiation stays unstable. 
+
+\textbf{Symbolic differentiation} takes a different approach - instead of evaluating a function, it constructs a symbolic expression representing its derivative. Technically, symbolic differentiaton relies on a fact that algebraic expressions are either primitive (e.g. summation, product, exponent, etc.) or a combination of the above. For primitive expressions there's already a well-known set of rules, i.e. $\frac{d}{dx}cos(x) = sin(x)$. Combined expressions are handled using a chain rule, i.e. if $z = z(y)$ is a function of $y$ which in turn is a function $y = y(x)$ of $x$, then derivative $\frac{dz}{dx}$ may be expressed as:
+
+$$\frac{dz}{dx} = \frac{dz}{dy}\frac{dy}{dx}$$
+
+Chain rule and differentiation rules for primitive expressions make it possible to divide any algebraic expression into primitive parts and find their derivatives one by one (ugly sentence, rephrase!). (make a note that this part is important since our method also relies on these 2 statements). Here we demonstrate this method by example. 
+
+Let's say we want to differentiate expression $f(x) = sin(x^2)$. Since there are only 2 calls, we can introduce one intermediate function $g(x)$ so that $f(x) = sin(g(x))$. Using chain rule from above we get: 
+
+$$\frac{df}{dx} = \frac{df}{dg}\frac{dg}{dx} = \frac{d(sin(g))}{dg}\frac{d(x^2)}{dx}$$
+
+From primitive rules we know that $\frac{d}{dg}sin(g) = cos(g)$ and $\frac{d}{dx}x^2 = 2x$. Replacing $g$ with its original value and multiplying two derivatives we get: 
+
+$$\frac{df}{dx} = cos(x^2) \times 2x$$
+
+Which is correct derivative of the specified function. 
+
+Unlike numeric approach, symbolic differentiation produces code for \textit{exact} calculation of derivatives. Also, in many cases this code is as efficient as possible and close to what a human expert would derive. Moreover, produced symbolic expression may then be further optimized (e.g. to fit memory requirements or improve numeric stability) or even translated to GPU or any other computation engine, which is extremely desirebale property in the context of neural networks and related models.
+
+On the other hand, symbolic differentiation has much more limited applicability. First of all, since the goal of this category of methods is to produce symbolic expression of a derivative, it is limited only to functions continuously differentiable. In computer program, however, most conditions and loops introduce discontinuity, so they are normally not allowed. Another restriction of symbolic differentiation is that most practical implementations (including highly adopted \cite{SymPy} and \cite{Mathematica}), are essentially univariate, i.e. they don't support vector input and are thus unapplicable to most machine learning functions.
+
+\textbf{Automatic differentiation}
+
+
 
 \section{Hybrid method for scalars and lower-order tensors}
 
@@ -76,6 +115,12 @@ TODO
 \section{Hybrid method for higher-order tensors}
 
 TODO
+
+\section{Implementation in Julia}
+
+0. Rationale: symbolic programming and overloaded operations, accepted in math
+1. Expression graph
+2. Operator overloading
 
 \newpage
 

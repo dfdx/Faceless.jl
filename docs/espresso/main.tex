@@ -76,7 +76,7 @@ To the best of our knowledge, most computer-based differentiation methods are di
 \end{enumerate}
 
 
-\textbf{Numeric differentiation} methods are the simplest ones and directly rely on the definition of derivative. We say that $\frac{df}{dx}$ is a derivative of a function $f(x)$ with respect to $x$ if: 
+\textbf{Numeric differentiation (ND)} methods are the simplest ones and directly rely on the definition of derivative. We say that $\frac{df}{dx}$ is a derivative of a function $f(x)$ with respect to $x$ if: 
 
 $$\frac{df}{dx} = \lim_{\Delta x \to 0} \frac{f(x + \Delta x) - f(x)}{\Delta x}$$
 
@@ -84,7 +84,7 @@ Given this definition we can calculate derivative of any function by computing i
 
 The major advantage of this method is that it's able to compute derivatives of any function differentiable at both - $x$ and $\Delta x$. The main disadvantage comes from complexity of choosing good $\Delta x$: too small values may lead to round-off errors during floating point operations, while too large values lead to weak approximation of real value of a derivative. Attempts have been done to imrpove precision using multiple differences (e.g. \cite{fornberg1988}), but in general case accuracy of numeric differentiation stays unstable. 
 
-\textbf{Symbolic differentiation} takes a different approach - instead of evaluating a function, it constructs a symbolic expression representing its derivative. Technically, symbolic differentiaton relies on a fact that algebraic expressions are either primitive (e.g. summation, product, exponent, etc.) or a combination of the above. For primitive expressions there's already a well-known set of rules, i.e. $\frac{d}{dx}cos(x) = sin(x)$. Combined expressions are handled using a chain rule, i.e. if $z = z(y)$ is a function of $y$ which in turn is a function $y = y(x)$ of $x$, then derivative $\frac{dz}{dx}$ may be expressed as:
+\textbf{Symbolic differentiation (SD)} takes a different approach - instead of evaluating a function, it constructs a symbolic expression representing its derivative. Technically, symbolic differentiaton relies on a fact that algebraic expressions are either primitive (e.g. summation, product, exponent, etc.) or a combination of the above. For primitive expressions there's already a well-known set of rules, i.e. $\frac{d}{dx}cos(x) = sin(x)$. Combined expressions are handled using a chain rule, i.e. if $z = z(y)$ is a function of $y$ which in turn is a function $y = y(x)$ of $x$, then derivative $\frac{dz}{dx}$ may be expressed as:
 
 $$\frac{dz}{dx} = \frac{dz}{dy}\frac{dy}{dx}$$
 
@@ -102,10 +102,32 @@ Which is correct derivative of the specified function.
 
 Unlike numeric approach, symbolic differentiation produces code for \textit{exact} calculation of derivatives. Also, in many cases this code is as efficient as possible and close to what a human expert would derive. Moreover, produced symbolic expression may then be further optimized (e.g. to fit memory requirements or improve numeric stability) or even translated to GPU or any other computation engine, which is extremely desirebale property in the context of neural networks and related models.
 
-On the other hand, symbolic differentiation has much more limited applicability. First of all, since the goal of this category of methods is to produce symbolic expression of a derivative, it is limited only to functions continuously differentiable. In computer program, however, most conditions and loops introduce discontinuity, so they are normally not allowed. Another restriction of symbolic differentiation is that most practical implementations (including highly adopted \cite{SymPy} and \cite{Mathematica}), are essentially univariate, i.e. they don't support vector input and are thus unapplicable to most machine learning functions.
+On the other hand, symbolic differentiation has much more limited applicability. First of all, since the goal of this family of methods is to produce symbolic expression of a derivative, it is limited only to functions continuously differentiable in all points. In computer program, however, most conditions and loops introduce discontinuity, so they are normally not allowed. Another restriction of symbolic differentiation is that most practical implementations (including highly adopted \cite{SymPy} and \cite{Mathematica}), are essentially univariate, i.e. they don't support vector inputs and are thus unapplicable to most machine learning functions.
 
-\textbf{Automatic differentiation}
+\textbf{Automatic differentiation (AD)} is a set of techniques to numerically evaluate the derivative of a function. Similarly to symbolic differentiation, it decomposes algebraic expressions into a set of primitive subexpressions and then uses chain rule to combine results. Unlike symbolic approach, however, AD doesn't produce new expression, but only computes derivative at a point, so it can easily handle conditions and loops. AD has 2 main modes: forward and reverse.
 
+\textit{Forward-mode AD} consists of a single pass from input arguments to the value of a function, during which both - value of the function and its derivative - are calculated. Typically, this mode is implemented using dual numbers - special extension of real numbers with additional part that holds the derivative of a variable in question. However, this method has pretty bad complexity for function $R^m \to R^n$ where $m \gg n$, i.e. most loss machines in machine learning. Thus we don't dive deeper in description of this method and guide interested reader to \cite{stan}.
+
+\textit{Reverse-mode AD} consists of 2 passes. On the \textit{forward} pass it computes values of all primitive expressions and records them into intermediate variables on a "tape". On the \textit{reverse} pass, the method starts with the derivative of output variable by itself (i.e. always $1$) and traverses expression tree backward calculating derivatives of the output by each of intermediate variables. Here's an example of such computation. 
+
+Let $z = sin(x^2)$. This complex expression contains 2 primitive expressions, which we immediately write onto a tape:
+
+\begin{enumerate}
+\item $y = x^2$
+\item $z = sin(y)$
+\end{enumerate}
+
+By convention, we also replace input and output variables by new indexed names to make all variables look similar. This way we get:
+
+\begin{enumerate}
+\item $w_1 = x$
+\item $w_2 = w_1^2$
+\item $w_3 = sin(w_2)$
+\end{enumerate}
+
+We seek to find derivative $\frac{dz}{dx} = \frac{dw_3}{dw_1}$. We start with the fact that derivative the output variable by itself is $\frac{dw_3}{dw_3} = 1$ (the proof is trivially inferred from the definition of derivative). 
+
+From the chain rule we know that $\frac{dw_3}{dw_2} = \frac{dw_3}{dw_3} \times \frac{dw_3}{dw_2}$. We already know that $\frac{dw_3}{dw_3} = 1$ and from primitive rules we also know that $\frac{d(sin(w_2))}{dw_2} = cos(w_2)$, so multiplying these parts we get $\frac{dw_3}{dw_2} = 1 \times cos(w_2) = cos(w_2)$.
 
 
 \section{Hybrid method for scalars and lower-order tensors}

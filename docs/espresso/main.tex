@@ -58,7 +58,7 @@ TODO
 
 \section{Introduction}
 
-A significant portion of machine learning algorithms directly relies on gradient-based optimization methods. As their name states, these methods require computing a gradient of a loss function on each step of optimization. Simple models like logistic regression have well-known formulas for computing partial derivatives. However, recent progress in machine learning and especially deep neural networks has given the rise to much more complicated models and loss functions. (examples/references?) 
+A significant portion of machine learning (ML) algorithms directly relies on gradient-based optimization methods. As their name states, these methods require computing a gradient of a loss function on each step of optimization. Simple models like logistic regression have well-known formulas for computing partial derivatives. However, recent progress in machine learning and especially deep neural networks has given the rise to much more complicated models and loss functions. (examples/references?) 
 
 Manually computing gradients of such functions is time-consuming and error-prone, so often computer-based methods are used instead. Such methods fall into several categories, and each category has their advantages and downsides. In this paper we present a method that falls in-between 2 of these categories (hence, hybrid method) and is specifically designed with a focus on machine learning applications. One important difference from other approaches is that our method also supports efficient calculation of derivatives of functions from $R^m$ to $R^n$ where both $m$ and $n$ are large, whereas other methods either require one of them to be small (add references? ForwardDiff.jl, ReverseDiffSource.jl), or can't handle vector-functions at all (add references? Mathematica, SymPy). 
 
@@ -139,7 +139,24 @@ In the next section we describe our method in a way that works for scalars and p
 
 \section{Hybrid method for scalars and lower-order tensors}
 
-TODO
+The ultimate goal of our method is to be able to produce symbolic derivatives for algebraic functions commonly used in machine learning. Since we seek for a symbolic representation, we limit our framework to continiously differentiable function, i.e. we don't support conditional operators and loops as they may, in general case, introduce points of discontinuity. To our mind, this is not a hard limitation in the context of ML since most loss functions that use loops can be transformed into a form with summation. We do, however, support operators like $min$, $max$, $sign$ and similar that may be thought of as conditional, but don't create discontinuity points.
+
+In general, our method is based on approach used in reverse-mode AD, but instead of computing \textit{values} of variables and derivatives, we compose their \textit{symbolic expressions} to build a computational graph suitable for further optimization. For demonstration purposes, let's consider expression $z = x_1x_2 + sin(x_1)$ and find derivatives $\frac{dz}{dx_1}$ and $\frac{dz}{dx_2}$.
+
+Forward pass in our case consists of 2 stages: recording all primitive operations onto a tape and evaluating "example values" (which we explain a bit later). Recording operations includes parsing subexpressions into intermediate variables and constructing a list of primitive expressions, e.g. for expression above such a list would look like this:
+
+\begin{enumerate}
+\item $w_1 = x_1$
+\item $w_2 = x_2$
+\item $w_3 = w_1 \times w_2$
+\item $w_4 = sin(w_1)$
+\item $w_5 = w_3 + w4$ (same as $z$)
+\end{enumerate}
+
+This expression list, however, lacks type information needed to distinguish between scalars and higher-rank tensors. To obtain this information, we introduce a notion of "example values" - values attached to each variable and having the same type as real values could have. E.g. we can use value 1 for $x_1$ and $x_2$ to indicate that input parameters are scalars, or random 2x2 matrices to indicate that they are instances of tensor-2. Note, that real values passed to generated expression later don't need to have the same value or size (for tensors), but only the same type. 
+
+Having example values of input parameters we evaluate each primitive expression to determine their own example values and find out derivative rules based on it (move note about differentiation rules somewhere above).
+
 
 \section{Hybrid method for higher-order tensors}
 

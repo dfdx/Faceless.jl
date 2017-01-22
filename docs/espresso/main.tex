@@ -29,12 +29,6 @@ Belarussian State University \\of Informatics and Radioelectronics\\
 Minsk, Belarus\\
 Email: andrei.zhabinski@gmail.com}
 \and
-\IEEEauthorblockN{Andrey Vakunov}
-\IEEEauthorblockA{
-Adform BY\\
-Minsk, Belarus\\
-Email: andrey.vakunov@adform.com}
-\and
 \IEEEauthorblockN{Dzmitry Adzinets}
 \IEEEauthorblockA{
 Belarussian State University \\of Informatics and Radioelectronics\\
@@ -133,9 +127,9 @@ Reverse-mode AD has gained particular popularity in the field of machine learnin
 
 There's also a few methods that try to combine strengths of symbolic and automatic differentiation. One notable example is \textbf{D*} algorithm from \cite{guenter2007}. In their paper, Guenter et al. describe a library in C++ that overloads common algebraic operations for their \textit{V(ariable)} class to produce expression graph, and then aggressively optimize this graph to eliminate repeating blocks. \textbf{D*} allows for vector-valued functions where each output component may represent an independent function of input arguments. This gives flexibility in defining vector-valued functions, but in worst case (i.e. when there are no repeating blocks to be eliminated) may result in a run time proportional to the number of output values. 
 
-Our method is similar in spirit to \textbf{D*}, but instead of supporting independent functions, we limit output components to be functions of the same basic structure and only different indexes (e.g. $z_i = f(x_j, y_k)$). This is much more common in machine learning and allows us to generate more compact code with much smaller run time. Moreover, our method works with functions that output not only vectors, but also matrices and, in general, tensors of any rank. 
+Our method is similar in spirit to \textbf{D*}, but instead of supporting independent functions, we limit output components to be functions of the same basic structure and only different indices (e.g. $z_i = f(x_j, y_k)$). This is much more common in machine learning and enables generating more compact code with much smaller run time. Moreover, our method works with functions that output not only vectors, but also matrices and, in general, tensors of any rank. 
 
-In the next section we describe our method in a way that works for scalars and partially for lower-order tensors (i.e. vectors amd matrices), and in section 4 we extend this framework to support higher-order tensors.
+In the next section we describe our method in a way that works for scalars and partially for lower-order tensors (i.e. vectors and matrices), and in section 4 we extend this framework to support higher-order tensors.
 
 \section{Hybrid method for scalars and lower-order tensors}
 

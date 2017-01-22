@@ -6,7 +6,8 @@ using MLBase
 include("core.jl")
 
 function svm_simple()
-    Xfull, yfull, mask = load_image_dataset(:ck_max)
+    # Xfull, yfull, mask = load_image_dataset(FaceDatasets.CKMaxDataset; da)
+    Xfull = load_images(FaceDatasets.CKMaxDataset, DATA_DIR_CK)
     X = Xfull[:, yfull .!= -1]
     y = yfull[yfull .!= -1]
     # train_idxs = collect(StratifiedKfold(y, 10))[1]

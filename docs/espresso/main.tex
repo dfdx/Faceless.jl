@@ -11,6 +11,8 @@
 \usepackage{amsmath}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
+\usepackage{physics}
+\usepackage{listings}
 
 \makeatletter
 \def\BState{\State\hskip-\ALG@thistlm}
@@ -19,49 +21,68 @@
 
 \begin{document}
 
-\title{Hybrid differentiation of tensors \\ for machine learning}
+\title{Symbolic Tensor Differentiation \\ for Applications in Machine Learning}
 
 
-\author{
-\IEEEauthorblockN{Andrei Zhabinski}
-\IEEEauthorblockA{
-Belarussian State University \\of Informatics and Radioelectronics\\
-Minsk, Belarus\\
-Email: andrei.zhabinski@gmail.com}
-\and
-\IEEEauthorblockN{Dzmitry Adzinets}
-\IEEEauthorblockA{
-Belarussian State University \\of Informatics and Radioelectronics\\
-Minsk, Belarus\\
-Email: adzinets@bsuir.by}}
+\author{ \IEEEauthorblockN{Andrei Zhabinski} \IEEEauthorblockA{
+    Belarussian State University \\of Informatics and Radioelectronics\\
+    Minsk, Belarus\\
+    Email: andrei.zhabinski@gmail.com} \and \IEEEauthorblockN{Dzmitry
+    Adzinets} \IEEEauthorblockA{
+    Belarussian State University \\of Informatics and Radioelectronics\\
+    Minsk, Belarus\\
+    Email: adzinets@bsuir.by}}
 
 \maketitle
 
 
 \begin{abstract}
-%\boldmath
-TODO
+  % \boldmath
+Automated methods for computing derivatives of cost functions are essential to many modern applications of machine learning. Reverse-mode automatic differentiation provides relatively cheap means for it but generated code often requires a lot of memory and is hardly amenable to post-optimizations. Symbolic differentiation, on the other hand, generates much more flexible code, yet applying it to multidimensional tensors is a poorly studied topic. In this paper, we present a method for symbolic tensor differentiation based on extended Einstein indexing notation, that allows overcoming many limitations of both - automatic and classic symbolic differentiation. 
 
 
 \end{abstract}
 
-% no keywords
+\textbf{Keywords:} symbolic differentiation, Einstein notation, machine learning.
 
 \IEEEpeerreviewmaketitle
 
 
 \section{Introduction}
 
-A significant portion of machine learning (ML) algorithms directly relies on gradient-based optimization methods. As their name states, these methods require computing a gradient of a loss function on each step of optimization. Simple models like logistic regression have well-known formulas for computing partial derivatives. However, recent progress in machine learning and especially deep neural networks has given the rise to much more complicated models and loss functions. (examples/references?) 
+A significant portion of machine learning (ML) algorithms directly
+relies on gradient-based optimization methods. As their name states,
+these methods require computing a gradient of a loss function on each
+step of optimization. Simple models like logistic regression have
+well-known formulas for computing partial derivatives. However, recent
+progress in machine learning and especially deep neural networks has
+given a rise to much more complicated models and loss functions.
 
-Manually computing gradients of such functions is time-consuming and error-prone, so often computer-based methods are used instead. Such methods fall into several categories, and each category has their advantages and downsides. In this paper we present a method that falls in-between 2 of these categories (hence, hybrid method) and is specifically designed with a focus on machine learning applications. One important difference from other approaches is that our method also supports efficient calculation of derivatives of functions from $R^m$ to $R^n$ where both $m$ and $n$ are large, whereas other methods either require one of them to be small (add references? ForwardDiff.jl, ReverseDiffSource.jl), or can't handle vector-functions at all (add references? Mathematica, SymPy). 
+Manually computing gradients of such functions is time-consuming and
+error-prone, so often computer-based methods are used instead. Such
+methods fall into several categories, and each category has their
+advantages and disadvantages. In this paper we present a method that
+combines parts of 2 of these categories and is
+specifically designed with a focus on machine learning
+applications. One important difference from other approaches is that
+our method also supports efficient calculation of derivatives of
+functions from $R^m$ to $R^n$ where both $m$ and $n$ are large,
+whereas other methods either require one of them to be small (add
+references? ForwardDiff.jl, \cite{Stan}), or can't handle
+vector-functions at all (e.g. \cite{Mathematica}, \cite{SymPy}).
 
-The rest of this paper is structured as follow. In the next section we revisit major categories (families?) of computer-based differentiation algorithms and explain where our method falls in. In section 3 we describe actual method as applied to scalars (numbers) and lower-order tensors, while in section 4 we extend it to higher-order tensors using  Einstein notation. 
+The rest of this paper is structured as follow. In the next section we
+revisit major categories (families?) of computer-based differentiation
+algorithms and explain where our method falls in. In section 3 we
+describe actual method as applied to scalars (numbers) and lower-order
+tensors, while in section 4 we extend it to higher-order tensors using
+Einstein notation.
 
 
 \section{Overview of computer-based differentiation methods}
 
-To the best of our knowledge, most computer-based differentiation methods are divided into 3 main categories: 
+To the best of our knowledge, most computer-based differentiation
+methods are divided into 3 main categories:
 
 \begin{enumerate}
 \item Numeric (also known as finite difference methods)
@@ -70,48 +91,118 @@ To the best of our knowledge, most computer-based differentiation methods are di
 \end{enumerate}
 
 
-\textbf{Numeric differentiation (ND)} methods are the simplest ones and directly rely on the definition of derivative. We say that $\frac{df}{dx}$ is a derivative of a function $f(x)$ with respect to $x$ if: 
+\textbf{Numeric differentiation (ND)} methods are the simplest ones
+and directly rely on the definition of derivative. We say that
+$\frac{df}{dx}$ is a derivative of a function $f(x)$ with respect to
+$x$ if:
 
 $$\frac{df}{dx} = \lim_{\Delta x \to 0} \frac{f(x + \Delta x) - f(x)}{\Delta x}$$
 
-Given this definition we can calculate derivative of any function by computing it at $x$ and $x + \Delta x$ where $\Delta x$ is some little constant, and then dividing the result by that constant. 
+Given this definition we can calculate derivative of any function by
+computing it at $x$ and $x + \Delta x$ where $\Delta x$ is some little
+constant, and then dividing the result by that constant.
 
-The major advantage of this method is that it's able to compute derivatives of any function differentiable at both - $x$ and $\Delta x$. The main disadvantage comes from complexity of choosing good $\Delta x$: too small values may lead to round-off errors during floating point operations, while too large values lead to weak approximation of real value of a derivative. Attempts have been done to imrpove precision using multiple differences (e.g. \cite{fornberg1988}), but in general case accuracy of numeric differentiation stays unstable. 
+The major advantage of this method is that it's able to compute
+derivatives of any function differentiable at both - $x$ and
+$\Delta x$. The main disadvantage comes from complexity of choosing
+good $\Delta x$: too small values may lead to round-off errors during
+floating point operations, while too large values lead to weak
+approximation of real value of a derivative. Attempts have been done
+to imrpove precision using multiple differences
+(e.g. \cite{fornberg1988}), but in general case accuracy of numeric
+differentiation stays unstable.
 
-\textbf{Symbolic differentiation (SD)} takes a different approach - instead of evaluating a function, it constructs a symbolic expression representing its derivative. Technically, symbolic differentiaton relies on a fact that algebraic expressions are either primitive (e.g. summation, product, exponent, etc.) or a combination of the above. For primitive expressions there's already a well-known set of rules, i.e. $\frac{d}{dx}cos(x) = sin(x)$. Combined expressions are handled using a chain rule, i.e. if $z = z(y)$ is a function of $y$ which in turn is a function $y = y(x)$ of $x$, then derivative $\frac{dz}{dx}$ may be expressed as:
+\textbf{Symbolic differentiation (SD)} takes a different approach -
+instead of evaluating a function, it constructs a symbolic expression
+representing its derivative. Technically, symbolic differentiaton
+relies on a fact that algebraic expressions are either primitive
+(e.g. summation, product, exponent, etc.) or a combination of the
+above. For primitive expressions there's already a well-known set of
+rules, i.e. $\frac{d}{dx}cos(x) = sin(x)$. Combined expressions are
+handled using a chain rule, i.e. if $z = z(y)$ is a function of $y$
+which in turn is a function $y = y(x)$ of $x$, then derivative
+$\frac{dz}{dx}$ may be expressed as:
 
 $$\frac{dz}{dx} = \frac{dz}{dy}\frac{dy}{dx}$$
 
-Chain rule and differentiation rules for primitive expressions make it possible to divide any algebraic expression into primitive parts and find their derivatives one by one (ugly sentence, rephrase!). (make a note that this part is important since our method also relies on these 2 statements). Here we demonstrate this method by example. 
+Chain rule and differentiation rules for primitive expressions make it
+possible to divide any algebraic expression into primitive parts and
+find their derivatives one by one (ugly sentence, rephrase!). (make a
+note that this part is important since our method also relies on these
+2 statements). Here we demonstrate this method by example.
 
-Let's say we want to differentiate expression $f(x) = sin(x^2)$. Since there are only 2 calls, we can introduce one intermediate function $g(x)$ so that $f(x) = sin(g(x))$. Using chain rule from above we get: 
+Let's say we want to differentiate expression $f(x) = sin(x^2)$. Since
+there are only 2 calls, we can introduce one intermediate function
+$g(x)$ so that $f(x) = sin(g(x))$. Using the chain rule from above we get:
 
 $$\frac{df}{dx} = \frac{df}{dg}\frac{dg}{dx} = \frac{d(sin(g))}{dg}\frac{d(x^2)}{dx}$$
 
-From primitive rules we know that $\frac{d}{dg}sin(g) = cos(g)$ and $\frac{d}{dx}x^2 = 2x$. Replacing $g$ with its original value and multiplying two derivatives we get: 
+\textbf{TODO: sum over partial derivatives}
+
+From primitive rules we know that $\frac{d}{dg}sin(g) = cos(g)$ and
+$\frac{d}{dx}x^2 = 2x$. Replacing $g$ with its original value and
+multiplying two derivatives we get:
 
 $$\frac{df}{dx} = cos(x^2) \times 2x$$
 
-Which is correct derivative of the specified function. 
+Which is correct derivative of the specified function.
 
-Unlike numeric approach, symbolic differentiation produces code for \textit{exact} calculation of derivatives. Also, in many cases this code is as efficient as possible and close to what a human expert would derive. Moreover, produced symbolic expression may then be further optimized (e.g. to fit memory requirements or improve numeric stability) or even translated to GPU or any other computation engine, which is extremely desirebale property in the context of neural networks and related models.
+Unlike numeric approach, symbolic differentiation produces code for
+\textit{exact} calculation of derivatives. Also, in many cases this
+code is as efficient as possible and close to what a human expert
+would derive. Moreover, produced symbolic expression may then be
+further optimized (e.g. to fit memory requirements or improve numeric
+stability) or even translated to GPU or any other computation engine,
+which is extremely desirebale property in the context of neural
+networks and related models.
 
-On the other hand, symbolic differentiation has much more limited applicability. First of all, since the goal of this family of methods is to produce symbolic expression of a derivative, it is limited only to functions continuously differentiable in all points. In computer program, however, most conditions and loops introduce discontinuity, so they are normally not allowed. Another restriction of symbolic differentiation is that most practical implementations (including highly adopted \cite{SymPy} and \cite{Mathematica}), are essentially univariate, i.e. they don't support vector inputs and are thus unapplicable to most machine learning functions.
+On the other hand, symbolic differentiation has much more limited
+applicability. First of all, since the goal of this family of methods
+is to produce symbolic expression of a derivative, it is limited only
+to functions continuously differentiable in all points. In computer
+program, however, most conditions and loops introduce discontinuity,
+so they are normally not allowed. Another restriction of symbolic
+differentiation is that most practical implementations (including
+highly adopted \cite{SymPy} and \cite{Mathematica}), are essentially
+univariate, i.e. they don't support vector inputs and are thus
+unapplicable to most machine learning functions.
 
-\textbf{Automatic differentiation (AD)} is a set of techniques to numerically evaluate the derivative of a function. Similarly to symbolic differentiation, it decomposes algebraic expressions into a set of primitive subexpressions and then uses chain rule to combine results. Unlike symbolic approach, however, AD doesn't produce new expression, but only computes derivative at a point, so it can easily handle conditions and loops. AD has 2 main modes: forward and reverse.
+\textbf{Automatic differentiation (AD)} is a set of techniques to
+numerically evaluate the derivative of a function. Similarly to
+symbolic differentiation, it decomposes algebraic expressions into a
+set of primitive subexpressions and then uses chain rule to combine
+results. Unlike symbolic approach, however, AD doesn't produce new
+expression, but only computes derivative at a point, so it can easily
+handle conditions and loops. AD has 2 main modes: forward and reverse.
 
-\textit{Forward-mode AD} consists of a single pass from input arguments to the value of a function, during which both - value of the function and its derivative - are calculated. Typically, this mode is implemented using dual numbers - special extension of real numbers with additional part that holds the derivative of a variable in question. However, this method has pretty bad complexity for function $R^m \to R^n$ where $m \gg n$, i.e. most loss machines in machine learning. Thus we don't dive deeper in description of this method and guide interested reader to \cite{stan}.
+\textit{Forward-mode AD} consists of a single pass from input
+arguments to the value of a function, during which both - value of the
+function and its derivative - are calculated. Typically, this mode is
+implemented using dual numbers - special extension of real numbers
+with additional part that holds the derivative of a variable in
+question. However, this method has pretty bad complexity for function
+$R^m \to R^n$ where $m \gg n$, i.e. most loss machines in machine
+learning. Thus we don't dive deeper in description of this method and
+guide interested reader to \cite{stan}.
 
-\textit{Reverse-mode AD} consists of 2 passes. On the \textit{forward} pass it computes values of all primitive expressions and records them into intermediate variables on a "tape". On the \textit{reverse} pass, the method starts with the derivative of output variable by itself (i.e. always $1$) and traverses expression tree backward to calculate derivatives of the output w.r.t. each of intermediate variables. Here's an example of such computation. 
+\textit{Reverse-mode AD} consists of 2 passes. On the \textit{forward}
+pass it computes values of all primitive expressions and records them
+into intermediate variables on a "tape". On the \textit{reverse} pass,
+the method starts with the derivative of output variable by itself
+(i.e. always $1$) and traverses expression tree backward to calculate
+derivatives of the output w.r.t. each of intermediate
+variables. Here's an example of such computation.
 
-Let $z = sin(x^2)$. This complex expression contains 2 primitive expressions, which we immediately write onto a tape:
+Let $z = sin(x^2)$. This complex expression contains 2 primitive
+expressions, which we immediately write onto a tape:
 
 \begin{enumerate}
 \item $y = x^2$
 \item $z = sin(y)$
 \end{enumerate}
 
-By convention, we also replace input and output variables by new indexed names to make all variables look similar. This way we get:
+By convention, we also replace input and output variables by new
+indexed names to make all variables look similar. This way we get:
 
 \begin{enumerate}
 \item $w_1 = x$
@@ -119,60 +210,453 @@ By convention, we also replace input and output variables by new indexed names t
 \item $w_3 = sin(w_2)$
 \end{enumerate}
 
-We seek to find derivative $\frac{dz}{dx} = \frac{dw_3}{dw_1}$. We start with the fact that derivative the output variable by itself is $\frac{dw_3}{dw_3} = 1$ (the proof is trivially inferred from the definition of derivative). 
+We seek to find derivative $\frac{dz}{dx} = \frac{dw_3}{dw_1}$. We
+start with the fact that derivative the output variable by itself is
+$\frac{dw_3}{dw_3} = 1$ (the proof is trivially inferred from the
+definition of derivative).
 
-From the chain rule we know that $\frac{dw_3}{dw_2} = \frac{dw_3}{dw_3} \times \frac{dw_3}{dw_2}$. We already know that $\frac{dw_3}{dw_3} = 1$ and from primitive rules we also know that $\frac{d(sin(w_2))}{dw_2} = cos(w_2)$, so multiplying these parts we get $\frac{dw_3}{dw_2} = 1 \times cos(w_2) = cos(w_2)$. Note, however, that AD doesn't ever create or transform symbolic expressions, but just calculates actual values of intermediate variables and their derivatives. 
+\textbf{TODO: write down actual values?}
 
-Reverse-mode AD has gained particular popularity in the field of machine learning and is implemented in such frameworks as Theano \cite{Theano} and TensorFlow \cite{TensorFlow}, as well as in dedicated libraries such as AutoGrad \cite{AutoGrad}. Strengths of this method include efficient (in terms of processing time) calculation of derivative of functions $R^m \to R^n$ where $m \gg n$ and transparent handling of multivariate vectors. Downsides of AD include high memory usage (because of the need to keep all variables on a tape during both - forward and reverse pass) and lack of symbolic representation that could be used for further optimizations and code generation. 
+From the chain rule we know that
+$\frac{dw_3}{dw_2} = \frac{dw_3}{dw_3} \times \frac{dw_3}{dw_2}$. We
+already know that $\frac{dw_3}{dw_3} = 1$ and from primitive rules we
+also know that $\frac{d(sin(w_2))}{dw_2} = cos(w_2)$, so multiplying
+these parts we get $\frac{dw_3}{dw_2} = 1 \times cos(w_2) = cos(w_2)$.
+Note, however, that AD doesn't ever create or transform symbolic
+expressions, but just calculates actual values of intermediate
+variables and their derivatives.
 
-There's also a few methods that try to combine strengths of symbolic and automatic differentiation. One notable example is \textbf{D*} algorithm from \cite{guenter2007}. In their paper, Guenter et al. describe a library in C++ that overloads common algebraic operations for their \textit{V(ariable)} class to produce expression graph, and then aggressively optimize this graph to eliminate repeating blocks. \textbf{D*} allows for vector-valued functions where each output component may represent an independent function of input arguments. This gives flexibility in defining vector-valued functions, but in worst case (i.e. when there are no repeating blocks to be eliminated) may result in a run time proportional to the number of output values. 
+Reverse-mode AD has gained particular popularity in the field of
+machine learning and is implemented in such frameworks as Theano
+\cite{Theano} and TensorFlow \cite{TensorFlow}, as well as in
+dedicated libraries such as AutoGrad \cite{AutoGrad}. Strengths of
+this method include efficient (in terms of processing time)
+calculation of derivative of functions $R^m \to R^n$ where $m \gg n$
+and transparent handling of multivariate vectors. Downsides of AD
+include high memory usage (because of the need to keep all variables
+on a tape during both - forward and reverse pass) and lack of symbolic
+representation that could be used for further optimizations and code
+generation.
 
-Our method is similar in spirit to \textbf{D*}, but instead of supporting independent functions, we limit output components to be functions of the same basic structure and only different indices (e.g. $z_i = f(x_j, y_k)$). This is much more common in machine learning and enables generating more compact code with much smaller run time. Moreover, our method works with functions that output not only vectors, but also matrices and, in general, tensors of any rank. 
+There's also a few methods that try to combine strengths of symbolic
+and automatic differentiation. One notable example is \textbf{D*}
+algorithm from \cite{guenter2007}. In their paper, Guenter et
+al. describe a library in C++ that overloads common algebraic
+operations for their \textit{V(ariable)} class to produce expression
+graph, and then aggressively optimize this graph to eliminate
+repeating blocks. \textbf{D*} allows for vector-valued functions where
+each output component may represent an independent function of input
+arguments. This gives flexibility in defining vector-valued functions,
+but in worst case (i.e. when there are no repeating blocks to be
+eliminated) may result in a run time proportional to the number of
+output values.
 
-In the next section we describe our method in a way that works for scalars and partially for lower-order tensors (i.e. vectors and matrices), and in section 4 we extend this framework to support higher-order tensors.
+Our method is similar in spirit to \textbf{D*}, but instead of
+supporting independent functions, we limit output components to be
+functions of the same basic structure and only different indices
+(e.g. $z_i = f(x_j, y_k)$). This is much more common in machine
+learning and enables generating more compact code with much smaller
+run time. Moreover, our method works with functions that output not
+only vectors, but also matrices and, in general, tensors of any rank.
 
-\section{Hybrid method for scalars and lower-order tensors}
+In the next section we describe our method in a way that works for
+scalars and partially for lower-order tensors (i.e. vectors and
+matrices), and in section 4 we extend this framework to support
+higher-order tensors.
 
-The ultimate goal of our method is to be able to produce symbolic derivatives for algebraic functions commonly used in machine learning. Since we seek for a symbolic representation, we limit our framework to continiously differentiable function, i.e. we don't support conditional operators and loops as they may, in general case, introduce points of discontinuity. To our mind, this is not a hard limitation in the context of ML since most loss functions that use loops can be transformed into a form with summation. We do, however, support operators like $min$, $max$, $sign$ and similar that may be thought of as conditional, but don't create discontinuity points.
+\section{Hybrid method for scalars}
 
-In general, our method is based on approach used in reverse-mode AD, but instead of computing \textit{values} of variables and derivatives, we compose their \textit{symbolic expressions} to build a computational graph suitable for further optimization. For demonstration purposes, let's consider expression $z = x_1x_2 + sin(x_1)$ and find derivatives $\frac{dz}{dx_1}$ and $\frac{dz}{dx_2}$.
+The ultimate goal of our method is to be able to produce symbolic
+derivatives for algebraic functions commonly used in machine
+learning. Since we seek for a symbolic representation, we limit our
+framework to continuously differentiable function, i.e. we don't
+support conditional operators and loops as they may, in general case,
+introduce points of discontinuity. To our mind, this is not a hard
+limitation in the context of ML since most loss functions that use
+loops can be transformed into a form with summation. We do, however,
+support operators like $min$, $max$, $sign$ and similar that may be
+thought of as conditional, but don't create discontinuity points.
 
-Forward pass in our case consists of 2 stages: recording all primitive operations onto a tape and evaluating "example values" (which we explain a bit later). Recording operations includes parsing subexpressions into intermediate variables and constructing a list of primitive expressions, e.g. for expression above such a list would look like this:
+In general, our method is based on approach used in reverse-mode AD,
+but instead of computing \textit{values} of variables and derivatives,
+we compose their \textit{symbolic expressions} to build a
+computational graph suitable for further optimization. For
+demonstration purposes, let's consider expression
+$z = x_1x_2 + sin(x_1)$ and find derivatives $\frac{dz}{dx_1}$ and
+$\frac{dz}{dx_2}$.
+
+Forward pass in our case consists of 2 stages: recording all primitive
+operations onto a tape and evaluating "example values" (which we
+explain later in this section). Recording operations includes parsing
+subexpressions into intermediate variables and constructing a list of
+primitive expressions, e.g. for expression above such a list would
+look like this:
 
 \begin{enumerate}
 \item $w_1 = x_1$
 \item $w_2 = x_2$
 \item $w_3 = w_1 \times w_2$
 \item $w_4 = sin(w_1)$
-\item $w_5 = w_3 + w4$ (same as $z$)
+\item $z = w_5 = w_3 + w4$
 \end{enumerate}
 
-This expression list, however, lacks type information needed to distinguish between scalars and higher-rank tensors. To obtain this information, we introduce a notion of "example values" - values attached to each variable and having the same type as real values could have. E.g. we can use value 1 for $x_1$ and $x_2$ to indicate that input parameters are scalars, or random 2x2 matrices to indicate that they are instances of tensor-2. Note, that real values passed to generated expression later don't need to have the same value or size (for tensors), but only the same type. 
+This expression list, however, lacks type information needed to
+distinguish between scalars and higher-rank tensors. To obtain this
+information, we introduce a notion of "example values" - values
+attached to each variable and having the same type as real values
+could have. E.g. we can use value 1 for $x_1$ and $x_2$ to indicate
+that input parameters are scalars, or random 2x2 matrices to indicate
+that they are instances of tensor-2. Note, that real values passed to
+generated expression later don't need to have the same value or size
+(for tensors), but only the same type and number of dimensions.
 
-Having example values of input parameters we evaluate each primitive expression to determine their own example values and find out derivative rules based on it (move note about differentiation rules somewhere above).
+After we have obtained example values of input parameters we can
+evaluate each primitive expression and infer example values for all
+intermediate and final variables.
 
+Reverse pass, just as in the case of AD, starts with the derivative of
+an output variable w.r.t. to itself and propagates derivatives back to
+input variables. However, instead of propagating concrete values we
+\textit{aggregate symbolic expressions}, i.e. build a formula
+describing how to calculate it from input and intermediate
+variables. We demonstrate it by example:
+
+\begin{enumerate}
+\item $\frac{dz}{dw_5} = \frac{dw_5}{dw_5} = 1$
+\item $\frac{dz}{dw_4} = 1 \times 1 = 1$
+\item $\frac{dz}{dw_3} = 1 \times 1 = 1$
+\item $\frac{dz}{dw_1} = 1 \times cos(w_1) = cos(w_1)$
+\item $\frac{dz}{dw_2} = 1 \times w_1$
+\item $\frac{dz}{dw_1} = cos(w_1) + 1 \times w_2 = cos(w_1) + w_2$
+\end{enumerate}
+
+Note that in our calculations we encounter $\frac{dz}{dw_1}$ twice -
+at lines 4 and 6. First time we calculate derivative of
+$\frac{dz}{dw_1}$ via $w_4$ only, while second time we also include
+the derivative via $w_3$. Also note, that we simplify expressions
+where possible, e.g. use $1$ instead of $1 \times 1$ - although it's
+not strictly necessary, it simplifies reading and reduces run time of
+implementation.
+
+So we finish with 2 formulas:
+
+$$\frac{dz}{dx_1} = \frac{dz}{dw_1} = cos(w_1) + w_2$$
+$$\frac{dz}{dx}_2 = \frac{dz}{dw_2} = w_1$$
+
+These formulas may then be applied to any input values $x_1$ and $x_2$
+to immediately obtain the result.
 
 \section{Hybrid method for higher-order tensors}
 
-TODO
+It's tempting to apply the same approach to differentiation of
+higher-order derivatives such as vectors and matrices. For example,
+for dot product of two vectors $z = \pmb{x} \cdot \pmb{y}$ we can
+easily show that $\frac{dz}{d\pmb{x}} = \pmb{y}$. However, this
+approach doesn't work for more complex operations because not all such
+derivatives have symbolic representation. One such example is
+matrix-by-vector product:
+
+$$\pmb{W}\pmb{x}$$
+
+In this case derivative $\pdv{\pmb{y}}{\pmb{W}}$ is a tensor with 3
+dimensions that cannot be straightforwardly expressed as a combination
+of input vectors and matrices.
+
+Although we cannot infer symbolic rules for tensors themselves, we
+still can do it for tensor components. We note here that for any
+function on tensors each component of an output tensor is a function
+of zero or more components of input tensors. For example,
+matrix-by-vector product above can be rewritten as:
+
+$$\sum_kW_{ik}x_k ,\quad \forall i$$
+
+Now instead of a tensor expression we have a set of scalar expressions
+over indexed variables $W_{ik}$, $x_k$ and $y_i$, which is much easier
+target.  However, before we move to differentiation of these indexed
+expression, we need to make one more change to out notation.
+
+Since we want to use symbolic differentiation from a programming
+language, we need a way to represent such expressions in programming
+notation, and symbols like $\sum$ and $\forall$ don't have
+straigtforward counterpart in programming. Even if we find appropriate
+representation, tensor expressions in index notation very quickly
+become bulky. Fortunately, these issues has already been addressed
+previously and have a solution in so-called Einstein indexing notation
+or just \textbf{Einstein notation}.
+
+According to classic Einstein notation \cite{dullemond2010}, unless
+otherwise stated:
+
+
+\begin{enumerate}
+\item a summation is assumed over all indices that appear twice in a
+  product
+\item no summation is assumed over indices that appear only once
+\end{enumerate}
+
+Given these rules, we can rewrite matrix-by-vector product in a
+shorter form:
+
+
+$$W_{ik}x_k$$
+
+which also plays well with array indexing notation in many programming
+languages, e.g. in Python or Julia:
+
+\begin{lstlisting}[language=Python]
+  W[i,k] * x[k]
+\end{lstlisting}
+
+Note, that for an index to be a "sum" index it should appear exactly
+in the same \textit{product term}. For example, in the following
+expression index $i$, although appearing twice, is still "for all"
+index:
+
+$$x_i + y_i$$
+
+The "unless otherwise stated" part is also important. In particular,
+when an expression is an equation, common approach is to consider all
+indices appearing on the left-hand side (LHS) to be "for all" and all
+the others - "sum" indices. E.g. we may write:
+
+$$y = x_i$$
+
+to indicate summation over components of vector \pmb{x}.
+
+Although Einstein notation is quite powerful by itself, it was
+designed for humans and doesn't cover a few important cases that may
+arise during automatic expression processinng. Below we describe these
+cases and introduce several extensions to classic Einstein notation
+that help to overcome them.
+
+First of all, since summation is a special operation that requires
+either product term or an equation with LHS, how do we represent it
+when none of these conditions is available? For example, how do we
+express:
+
+$$\sum_ix_i$$
+
+To deal with such cases we introduce a notion of \textbf{pseudo-one} -
+a special object similar to a tensor of all ones, but with undefined
+size. For example, we write one-dimensional pseudo-one as:
+
+$$1_i$$
+
+This object is only valid when it's being multiplied by other
+variables, and in this case it simply results in summation over
+pseudo-one indices. Now, having a notion of pseudo-one, we can
+represent sum of vector components as:
+
+$$\sum_ix_i \rightarrow x_i1_i$$
+
+Another corner case is conditional expressions. For example, as we
+will show later (TODO), in expression $y_i = W_{ik}x_k$ derivative
+$\pdv{y_i}{W_{mn}}$ is a 3 dimensional tensor with components defined
+as:
+
+$$\pdv{y_i}{W_{mn}} = 
+\begin{cases}
+  x_n, & \text{if } i = m, \\
+  0, & \text{otherwise}.
+\end{cases}$$
+
+Again, this expression is pretty inconvenient to work with, especially
+when we have to multiply it by other expressions of the same kind. To
+tackle with it, we introduce \textbf{guards} - conditional
+subexpressions on indices that either pass main expression as is (if
+condition is true) or turn it into zero (otherwise). For example,
+derivative $\pdv{y_i}{W_{mn}}$ can now be written as:
+
+$$\pdv{y_i}{W_{mn}} = x_n \quad | i = m$$
+
+where everything after a bar is a guard.
+
+One may argue that this notation is limited because it assumes one of
+conditional branches to be zero and it's not possible to reresent, for
+example, such expression:
+
+$$Z_{imn} = \begin{cases}
+  x_n, & \text{if } i = m, \\
+  y_n, & \text{otherwise}.
+\end{cases}$$
+
+Indeed, notation with guards is \textit{optimized} for conditions with
+zero branch, but one can still represent other conditions as a sum of
+separate branches multiplied by postitive or negative condition. E.g.:
+
+$$Z_{imn} = (x_n | i = m) + (y_n | i \neq m)$$
+
+Now, having this extended Einstein notation in mind, we can eventually
+describe our method for hybrid tensor differentiation.
+
+Out method consists of 5 principal steps:
+
+\begin{enumerate}
+\item Parse expression into a list of primitive expressions
+\item Convert each primitive expresseion into Einstein notation
+\item Apply known differentiatioin rules to primitive expressions
+\item Combine resulting derivatives using the chain rule
+\item Convert derivative expressioin from Einstein notation to a
+  vectorized one
+\end{enumerate}
+
+We do \textbf{expression parsing} exactly the same way as we did
+previously: each function call is transformed into a separate
+primitive expression. For example, linear transformation:
+
+$$\pmb{y} = \pmb{Wx} + \pmb{b}$$ 
+
+is parsed into two simpler expressions:
+
+$$\pmb{t} = \pmb{Wx}$$
+$$\pmb{y} = \pmb{t} + \pmb{b}$$
+
+We \textbf{convert from vectorized into Einstein notation} using a set
+of predefined rules. Each rule simply describes how components of
+output tensor depend on components of input tensors. Since at this
+step we deal only with primitive expressions, we only need to define
+one rule for each operation and operand types plus one special rule
+for elementwise operations (e.g. Hadamard product, which we denote
+here with $\circ$). The rules are easy to infer, so we provide here
+only a few exapmples for demonstration purposes:
+
+$$\pmb{y} = \pmb{Wx} \quad \rightarrow \quad y_i = W_{ik}x_k$$
+$$\pmb{Z} = \pmb{X} \circ \pmb{Y} \quad \rightarrow \quad Z_{ij} = X_{ij} \times Y_{ij}$$
+$$y = sum(\pmb{x}) \quad \rightarrow \quad y = x_i \times 1_i$$
+
+
+Rules for finding \textbf{derivatives of primitive expressions in
+  Einstein notation} are similar to those of scalar expressions, but
+with two exceptions:
+
+\begin{enumerate}
+\item all variables are indexed, and
+\item where derivative turns zero, guards are used
+\end{enumerate}
+
+We designate tensor derivatives in Einstein notation as:
+
+$$\pdv{Y_I}{X_J}$$
+
+where $Y$ is dependent variable, $X$ is the variable we differentiate
+with respect to, and $I$ and $J$ are sets of unique indices of
+appropriate length. For example, given an expression:
+
+$$y_i = W_{ik}x_k$$
+
+derivative $\pdv{y_i}{W_{mn}}$ describes how $i$th component of output
+vector $\pmb{y}$ depends on $(m, n)$th component of input matrix
+$\pmb{W}$. It's easy to show that $y_i$ depends only on $i$th row of
+matrix $\pmb{W}$, i.e. derivative is non-zero only when $i = m$, and
+when this condition holds, changing $W_{mn}$ by 1 leads to
+corresponding change in $y_i$ by $x_n$. We write both these statements
+as:
+
+$$\pdv{y_i}{W_{mn}} = x_n \quad | i = m$$
+
+Other rules are inferred in a similar way, so we show only a couple of
+them for reference:
+
+$$y_i = W_{ik}x_k \quad \rightarrow \quad \pdv{y_i}{x_m} = W_{im}$$
+$$Z_{ij} = X_{ij} \times Y_{ij} \quad \rightarrow \quad \pdv{Z_{ij}}{X_{mn}} = 1 \quad | i = m, j = n$$
+$$y = x_i \times 1_i \quad \rightarrow \quad \pdv{y}{x_m} = 1$$
+
+
+We \textbf{combine derivatives of primitive expressions} using the
+standard chain rule. If guards are present in one or both expressions,
+they are combined together. For example, if we have derivatives of 2
+primitive expressions in the same operator chain:
+
+$$\pdv{Z_{ij}}{Y_{mn}} = U_{nj} \quad | i = m$$
+$$\pdv{Y_{mn}}{X_{st}} = W_{tn} \quad | m = s$$
+
+then after applying the chain rule we get:
+
+$$\pdv{Z_{ij}}{X_{st}} = U_{nj}W_{tn} \quad | i = m, m = s$$
+
+which is naturally simplified to:
+
+$$\pdv{Z_{ij}}{X_{st}} = U_{nj}W_{tn} \quad | i = s$$
+
+It's also worth to note that despite automatic construction the
+resulting expression is still valid in Einstein notation: we indeed
+sum out $n$ index and leave all the others.
+
+Finally, we \textbf{convert expressions in Einstein notation back to
+  vectorized one} using predefined rules. Note, that conversion
+between vectorized and Einstein notation doesn't make one-to-one
+relation, but rather many-to-one (in both directions). For example,
+both of the following rules are used if different contexts:
+
+$$y = x_i1_i \quad \rightarrow \quad y = sum(\pmb{x})$$
+$$y = x_i \quad \rightarrow \quad y = sum(\pmb{x})$$
+
+Both expressions are valid and both designate sum over components of vector $\pmb{x}$. 
 
 \section{Implementation in Julia}
 
-0. Rationale: symbolic programming and overloaded operations, accepted in math
-1. Expression graph
-2. Operator overloading
+We provide a reference implementation in \textit{XDiff.jl} package
+(TODO: link) in the Julia programming language. Below we provide
+rationale for choosing the language and somem other design decisions.
+
+We chose Julia for several main reasons:
+
+\begin{enumerate}
+\item Julia support literals for vectors and matrices, and a large
+  number of built-in mathematical functions
+\item it also supports symbolic programming, i.e. variables and
+  expressions may be represented as first-class citizens in Julia
+\item operator overloading allows to extend semantics of expressions
+  to support, for example, symbolic product and summation
+\end{enumerate}
+
+For comparison, in Python/C++ TensorFlow the whole new language with
+its own abstract syntax tree and a set of standard functions had to be
+designed for the same purposes.
+
+Below we describe how we transfer some concepts from mathematical to
+programming notation.
+
+As we've already described in text, we represent variable indices
+using standard array indexing, e.g.:
+
+\begin{lstlisting}[language=Python]
+  y[i] = W[i,k] * x[k]
+\end{lstlisting}
+
+Since Julia doesn't support indexing of number literals, we replace
+pseudo-one notation $1_n$ with symbol \textit{I[n]}.
+
+Finally, to represent guards we use index comparison (e.g. \textit{(i
+  == m)}) and add it as an additional product term to the main
+expression. E.g.
+
+$$\pdv{y_i}{W_{mn}} = x_n \quad | i = m$$
+
+is translated into
+
+\begin{lstlisting}[language=Python]
+  dy_dW[i,m,n] = x[n] * (i == m)
+\end{lstlisting}
+
+When being multiplied by a number, boolean expression \textit{(i ==
+  m)} is converted into either 1 (true) or 0 (false). Thus when the
+condition holds, guard simply dissapears, otherwise the whole
+expression turns into zero.
 
 \newpage
 
-\section{Conclusion and discussion}
+\section{Conclusion}
 
-
+We have introduced a method for symbolic tensor differentiation using
+extended Einstein notation. The proposed method can be efficiently
+applied to functions where both - input and output - are tensors. The
+correctness of approach is proved by our reference implementation.
 
 % conference papers do not normally have an appendix
 
 
-\bibliography{references} 
-\bibliographystyle{ieeetr}
+\bibliography{references} \bibliographystyle{ieeetr}
 
 
 

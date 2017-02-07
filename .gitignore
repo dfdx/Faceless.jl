@@ -6,4 +6,9 @@
 *.log
 *.gz
 *.pyc
-snapshots/
+snapshots/	
+_*
+auto/
+*.bbl
+*.blg
+prv_main.fmt

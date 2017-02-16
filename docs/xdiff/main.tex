@@ -28,7 +28,11 @@
 \author{ \IEEEauthorblockN{Andrei Zhabinski} \IEEEauthorblockA{
     Belarussian State University \\of Informatics and Radioelectronics\\
     Minsk, Belarus\\
-    Email: andrei.zhabinski@gmail.com} \and \IEEEauthorblockN{Dzmitry
+    Email: andrei.zhabinski@gmail.com} \and \IEEEauthorblockN{Sergey
+    Zhabinskii} \IEEEauthorblockA{
+    Belarussian State University \\of Informatics and Radioelectronics\\
+    Minsk, Belarus\\
+    Email: sergey.zhabinskii@gmail.com} \and \IEEEauthorblockN{Dzmitry
     Adzinets} \IEEEauthorblockA{
     Belarussian State University \\of Informatics and Radioelectronics\\
     Minsk, Belarus\\
@@ -49,7 +53,8 @@
   studied topic. In this paper, we present a method for symbolic
   tensor differentiation based on extended Einstein indexing notation,
   which allows to overcome many limitations of both - automatic and
-  classic symbolic differentiation.
+  classic symbolic differentiation, and generate efficient code for
+  CPU and GPU.
 
 
 \end{abstract}
@@ -357,8 +362,8 @@ So we finish with 2 formulas:
 $$\frac{dz}{dx_1} = \frac{dz}{dw_1} = cos(w_1) + w_2$$
 $$\frac{dz}{dx}_2 = \frac{dz}{dw_2} = w_1$$
 
-These formulas may then be applied to any (scalar) input values $x_1$ and $x_2$
-to immediately obtain the result.
+These formulas may then be applied to any (scalar) input values $x_1$
+and $x_2$ to immediately obtain the result.
 
 \section{Symbolic method for higher-order tensors}
 
@@ -486,8 +491,8 @@ $$\pdv{y_i}{W_{mn}} = x_n \quad | i = m$$
 where everything after a bar is a guard.
 
 One may argue that this notation is limited because it assumes one of
-conditional branches to be zero and it's not possible to represent, for
-example, such expression:
+conditional branches to be zero and it's not possible to represent,
+for example, such expression:
 
 $$Z_{imn} = \begin{cases}
   x_n, & \text{if } i = m, \\
@@ -608,11 +613,74 @@ $$y = x_i \quad \rightarrow \quad y = sum(\pmb{x})$$
 Both expressions are valid and both designate sum over components of
 vector $\pmb{x}$.
 
+\section{Code generation for GPU}
+
+Conversion to vectorized notation may be seen as code generation for
+executing on CPU (central processing unit). But it's not the only
+possible backend - we can equally generate code for alternative
+runtime systems. One popular choice of such systems is GPU (graphics
+processing unit) which provides means for executing code with very
+high level of parallelism.
+
+In a typical GPGPU (general-purpose GPU) program, data is copied into
+device's memory, and then number of so-called kernels is run over
+them. Each kernel consists of a set of relatively simple instructions
+executed on each datum in parallel (up to the number of available GPU
+threads). This plays especially well with our Einstein notation which
+essentially is a way to describe how to calculate each output
+variable.
+
+Below we describe several techniques of code generation for GPU that
+we used in our work.
+
+One of the major bottlnecks in GPU computing is \textbf{data transfer}
+between main and device's memory, so we try to avoid it as much as
+possible. Fortunately, in our expressions we always know input and
+output variables, so we load them to and from a device exactly once
+for each function we analyze.
+
+Another advantage of upfront expression analysis is that we can
+\textbf{reuse data buffers}. To do this, we keep track of:
+
+\begin{enumerate}
+\item type and size of each variable's buffer
+\item variable's lifetime
+\end{enumerate}
+
+Each time we need to create a new temporary variable we first look for
+a suitable buffer in a cache of existing variables. If there's one and
+correspondig variable isn't used later than current expression, this
+buffer is reused. One very frequent example is elementwise operations.
+E.g. the following expression (in mathematical notation):
+
+$$c_i := a_i + b_i$$
+
+is actually translated into
+
+$$b_i := a_i + b_i$$
+
+
+(Here we use $:=$ to denote assignment in order not to abuse equality
+sign $=$)
+
+Another useful property of elementwise operations is that they may be
+\textbf{grouped into a single kernel}. Enqueuing a kernel has its own
+overhead, running several instructions in a single kernel helps to fix
+it. For example, in our tests running a logistic function
+$1 / (1 + exp(-x_i))$ in single kernel turned to be 1.4 times faster
+than running 3 separate kernels for exponent, summation and division
+(0.057 ms vs 0.08 ms for 50000-element 32-bit vectors using OpenCL).
+
+Finally, for matrix multiplication and other aggregation functions we
+use a library implementing \textbf{BLAS} specification \cite{BLAS}.
+
+
 \section{Implementation in Julia}
 
-We provide a reference implementation in \textit{XDiff.jl} \cite{XDiff} package
-in the Julia programming language. Below we provide
-rationale for choosing the language and some other design decisions.
+We provide a reference implementation in \textit{XDiff.jl}
+\cite{XDiff} package in the Julia programming language. Below we
+provide rationale for choosing the language and some other design
+decisions.
 
 We chose Julia for several main reasons:
 
@@ -659,16 +727,22 @@ When being multiplied by a number, boolean expression \textit{(i ==
 condition holds, guard simply dissapears, otherwise the whole
 expression turns into zero.
 
+We generate code for GPU in OpenCL's format. This choice is due to
+OpenCL's wide spread and portability, however, described techniques
+can be equally applied to other GPGPU systems (notably, CUDA).
+
 \section{Conclusion}
 
 We have introduced a method for symbolic tensor differentiation using
 extended Einstein notation. The proposed method can be efficiently
-applied to functions where both - input and output - are tensors. The
-correctness of approach is proved by our reference implementation.
+applied to functions where both - input and output - are tensors. We
+have also described tenchiques for code generation for CPU and
+GPU. The correctness of approach is proved by our reference
+implementation.
 
 % conference papers do not normally have an appendix
 
-\newpage
+% \newpage
 
 \bibliography{references} \bibliographystyle{ieeetr}
 
